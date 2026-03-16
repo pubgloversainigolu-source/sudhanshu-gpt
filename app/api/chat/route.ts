@@ -1,29 +1,32 @@
 import OpenAI from "openai";
+import { NextResponse } from "next/server";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 export async function POST(req: Request) {
-  const { message } = await req.json();
+  try {
+    const { message } = await req.json();
 
-  const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-  });
+    const response = await client.responses.create({
+      model: "gpt-4o-mini",
+      input: message
+    });
 
-  const stream = await client.responses.stream({
-    model: "gpt-4o-mini",
-    input: message
-  });
+    const reply = response.output_text;
 
-  const encoder = new TextEncoder();
+    return NextResponse.json({
+      reply: reply
+    });
 
-  const readable = new ReadableStream({
-    async start(controller) {
-      for await (const event of stream) {
-        if (event.type === "response.output_text.delta") {
-          controller.enqueue(encoder.encode(event.delta));
-        }
-      }
-      controller.close();
-    }
-  });
+  } catch (error) {
 
-  return new Response(readable);
+    console.error(error);
+
+    return NextResponse.json(
+      { reply: "Error contacting AI" },
+      { status: 500 }
+    );
+  }
 }

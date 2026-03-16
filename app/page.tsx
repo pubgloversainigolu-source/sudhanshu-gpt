@@ -1,110 +1,139 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
+
+type Message = {
+  role: "user" | "assistant";
+  text: string;
+};
 
 export default function Home() {
 
-  const [input, setInput] = useState("");
-  const [chats, setChats] = useState<any[]>([
-    { id: 1, title: "New Chat", messages: [] }
-  ]);
+  const [message, setMessage] = useState<string>("");
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  const [activeChat, setActiveChat] = useState(1);
+  async function sendMessage() {
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+    if (!message.trim()) return;
 
-  const currentChat = chats.find(c => c.id === activeChat);
+    const userMessage: Message = {
+      role: "user",
+      text: message
+    };
 
-  const updateChatMessages = (messages:any[]) => {
-    setChats(prev =>
-      prev.map(chat =>
-        chat.id === activeChat ? { ...chat, messages } : chat
-      )
-    );
-  };
+    const updatedMessages = [...messages, userMessage];
 
-  const sendMessage = async () => {
+    setMessages(updatedMessages);
+    setMessage("");
 
-    if (!input.trim()) return;
+    try {
 
-    const userMessage = { role:"user", text:input };
-
-    const updatedMessages = [
-      ...currentChat.messages,
-      userMessage,
-      { role:"ai", text:"" }
-    ];
-
-    updateChatMessages(updatedMessages);
-
-    setInput("");
-
-    const res = await fetch("/api/chat",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json"},
-      body:JSON.stringify({message:input})
-    });
-
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-
-    if (!reader) return;
-
-    let aiText = "";
-
-    while(true){
-
-      const {done,value} = await reader.read();
-
-      if(done) break;
-
-      aiText += decoder.decode(value);
-
-      updateChatMessages(prev=>{
-        const copy=[...prev];
-        copy[copy.length-1].text = aiText;
-        return copy;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: message
+        })
       });
 
+      const data = await res.json();
+
+      const aiMessage: Message = {
+        role: "assistant",
+        text: data.reply
+      };
+
+      setMessages([...updatedMessages, aiMessage]);
+
+    } catch {
+
+      setMessages([
+        ...updatedMessages,
+        { role: "assistant", text: "Error contacting AI" }
+      ]);
+
     }
+  }
 
-  };
-
-  const newChat = () => {
-
-    const id = Date.now();
-
-    setChats([
-      ...chats,
-      { id, title:"New Chat", messages:[] }
-    ]);
-
-    setActiveChat(id);
-
-  };
-
-  useEffect(()=>{
-    bottomRef.current?.scrollIntoView({behavior:"smooth"});
-  },[currentChat?.messages]);
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
 
   return (
 
-    <div style={{display:"flex",height:"100vh",background:"#0f172a",color:"white"}}>
-
-      {/* Sidebar */}
+    <main style={{
+      height: "100vh",
+      display: "flex",
+      flexDirection: "column"
+    }}>
 
       <div style={{
-        width:"260px",
-        borderRight:"1px solid #334155",
-        padding:"20px"
+        flex: 1,
+        overflow: "auto",
+        padding: "20px"
       }}>
 
-        <button
-          onClick={newChat}
+        <h2>SudhanshuGPT 🤖</h2>
+
+        {messages.map((msg, i) => (
+
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+              marginBottom: "12px"
+            }}
+          >
+
+            <div
+              style={{
+                background: msg.role === "user" ? "#2563eb" : "#1e293b",
+                color: "white",
+                padding: "12px",
+                borderRadius: "10px",
+                maxWidth: "60%"
+              }}
+            >
+              {msg.text}
+            </div>
+
+          </div>
+
+        ))}
+
+      </div>
+
+      <div style={{
+        padding: "20px",
+        borderTop: "1px solid #333",
+        display: "flex",
+        gap: "10px"
+      }}>
+
+        <textarea
+          value={message}
+          onChange={(e)=>setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={1}
+          placeholder="Ask your AI something..."
           style={{
-            width:"100%",
+            flex:1,
             padding:"10px",
-            marginBottom:"20px",
+            borderRadius:"6px",
+            resize:"none"
+          }}
+        />
+
+        <button
+          onClick={sendMessage}
+          style={{
+            padding:"10px 20px",
             background:"#22c55e",
             border:"none",
             borderRadius:"6px",
@@ -112,116 +141,11 @@ export default function Home() {
             cursor:"pointer"
           }}
         >
-          + New Chat
+          Send
         </button>
-
-        {chats.map(chat=>(
-          <div
-            key={chat.id}
-            onClick={()=>setActiveChat(chat.id)}
-            style={{
-              padding:"10px",
-              marginBottom:"8px",
-              background: chat.id===activeChat ? "#1e293b":"transparent",
-              borderRadius:"6px",
-              cursor:"pointer"
-            }}
-          >
-            {chat.title}
-          </div>
-        ))}
 
       </div>
 
-      {/* Chat Area */}
-
-      <main style={{
-        flex:1,
-        display:"flex",
-        flexDirection:"column"
-      }}>
-
-        <h2 style={{
-          padding:"20px",
-          borderBottom:"1px solid #334155"
-        }}>
-          SudhanshuGPT 🤖
-        </h2>
-
-        <div style={{
-          flex:1,
-          overflowY:"auto",
-          padding:"20px"
-        }}>
-
-          {currentChat?.messages.map((msg:any,i:number)=>(
-            <div key={i} style={{
-              display:"flex",
-              justifyContent: msg.role==="user"?"flex-end":"flex-start",
-              marginBottom:"15px"
-            }}>
-              <div style={{
-                background: msg.role==="user"?"#2563eb":"#1e293b",
-                padding:"12px 16px",
-                borderRadius:"10px",
-                maxWidth:"60%",
-                whiteSpace:"pre-wrap"
-              }}>
-                {msg.text}
-              </div>
-            </div>
-          ))}
-
-          <div ref={bottomRef}></div>
-
-        </div>
-
-        <div style={{
-          padding:"20px",
-          borderTop:"1px solid #334155",
-          display:"flex",
-          gap:"10px"
-        }}>
-
-          <textarea
-            value={input}
-            placeholder="Ask something..."
-            onChange={(e)=>setInput(e.target.value)}
-            onKeyDown={(e)=>{
-              if(e.key==="Enter" && !e.shiftKey){
-                e.preventDefault();
-                sendMessage();
-              }
-            }}
-            rows={1}
-            style={{
-              flex:1,
-              padding:"12px",
-              borderRadius:"6px",
-              border:"none",
-              resize:"none"
-            }}
-          />
-
-          <button
-            onClick={sendMessage}
-            style={{
-              padding:"12px 20px",
-              background:"#22c55e",
-              border:"none",
-              borderRadius:"6px",
-              color:"white",
-              cursor:"pointer"
-            }}
-          >
-            Send
-          </button>
-
-        </div>
-
-      </main>
-
-    </div>
-
+    </main>
   );
 }
