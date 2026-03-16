@@ -14,14 +14,11 @@ export async function POST(req: Request) {
       input: message
     });
 
-    const reply = response.output_text;
-
     return NextResponse.json({
-      reply: reply
+      reply: response.output_text
     });
 
   } catch (error) {
-
     console.error(error);
 
     return NextResponse.json(
